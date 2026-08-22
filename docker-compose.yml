@@ -1,0 +1,49 @@
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  back:
+    build:
+      context: .
+      dockerfile: back/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - NVAPI_KEY=${NVAPI_KEY:-}
+      - LLM_BASE_URL=${LLM_BASE_URL:-}
+      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - REDIS_URL=redis://redis:6379/0
+      - SESSION_TTL=${SESSION_TTL:-3600}
+      - DATABASE_PATH=/data/airlock_audit.db
+      - APP_HOST=0.0.0.0
+      - APP_PORT=8000
+    volumes:
+      - audit-data:/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  front:
+    build:
+      context: .
+      dockerfile: front/Dockerfile
+    ports:
+      - "8081:80"
+    depends_on:
+      - back
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  audit-data:

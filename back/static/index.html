@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Swiss Data Airlock</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,sans-serif;background:#0f1117;color:#e1e4e8;min-height:100vh}
+  .header{background:#161b22;border-bottom:1px solid #30363d;padding:16px 24px;display:flex;align-items:center;gap:16px}
+  .header h1{font-size:20px;font-weight:600;color:#f0f6fc}
+  .header .badge{background:#238636;color:#fff;font-size:11px;padding:3px 8px;border-radius:12px;font-weight:600}
+  .header .role-switch{margin-left:auto;display:flex;align-items:center;gap:8px}
+  .header .role-switch label{font-size:13px;color:#8b949e}
+  .header .role-switch select{background:#21262d;color:#e1e4e8;border:1px solid #30363d;padding:6px 10px;border-radius:6px;font-size:13px}
+  .main{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding:20px 24px;height:calc(100vh - 120px)}
+  .col{background:#161b22;border:1px solid #30363d;border-radius:10px;display:flex;flex-direction:column;overflow:hidden}
+  .col-header{padding:12px 16px;border-bottom:1px solid #30363d;font-size:13px;font-weight:600;color:#8b949e;text-transform:uppercase;letter-spacing:.5px;display:flex;align-items:center;gap:8px}
+  .col-header .dot{width:8px;height:8px;border-radius:50%}
+  .dot-red{background:#f85149}
+  .dot-yellow{background:#d29922}
+  .dot-green{background:#3fb950}
+  .col-body{flex:1;padding:16px;overflow-y:auto;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+  .col-body.empty{color:#484f58;font-style:italic}
+  .input-col textarea{width:100%;flex:1;background:#0d1117;color:#e1e4e8;border:1px solid #30363d;border-radius:6px;padding:12px;font-family:'Fira Code',monospace;font-size:13px;line-height:1.6;resize:none;outline:none}
+  .input-col textarea:focus{border-color:#58a6ff}
+  .input-col .actions{padding:12px 16px;border-top:1px solid #30363d;display:flex;gap:8px}
+  .btn{padding:8px 16px;border-radius:6px;border:none;font-size:13px;font-weight:600;cursor:pointer;transition:background .15s}
+  .btn-primary{background:#238636;color:#fff}
+  .btn-primary:hover{background:#2ea043}
+  .btn-primary:disabled{background:#21262d;color:#484f58;cursor:not-allowed}
+  .btn-secondary{background:#21262d;color:#c9d1d9;border:1px solid #30363d}
+  .btn-secondary:hover{background:#30363d}
+  .latency{font-size:11px;color:#8b949e;margin-left:auto;align-self:center}
+  .entity-list{margin-top:12px;border-top:1px solid #30363d;padding-top:12px}
+  .entity-tag{display:inline-block;background:#1f2937;border:1px solid #374151;border-radius:4px;padding:2px 6px;margin:2px;font-size:11px;color:#93c5fd}
+  .status{padding:4px 12px;font-size:12px;color:#8b949e}
+  .status.ok{color:#3fb950}
+  .status.err{color:#f85149}
+  @media(max-width:900px){.main{grid-template-columns:1fr;height:auto}.col{min-height:300px}}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Swiss Data Airlock</h1>
+  <span class="badge">MVP</span>
+  <div class="role-switch">
+    <label for="role">View as:</label>
+    <select id="role">
+      <option value="admin">Admin (Data Owner)</option>
+      <option value="auditor">Auditor (Cloud View)</option>
+    </select>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Column 1: Input -->
+  <div class="col input-col">
+    <div class="col-header"><span class="dot dot-red"></span> Input — Raw Text</div>
+    <textarea id="input" placeholder="Type a prompt with sensitive data...&#10;&#10;Examples:&#10;- Send CHF 50,000 to Hans Peter, IBAN CH9300000000000000000&#10;- Contact maria@example.com or call +41 79 123 45 67&#10;- Employee AHV: 756.1234.5678.90"></textarea>
+    <div class="actions">
+      <button class="btn btn-primary" id="sendBtn" onclick="send()">Send to Airlock</button>
+      <button class="btn btn-secondary" onclick="clearAll()">Clear</button>
+      <span class="latency" id="latency"></span>
+    </div>
+  </div>
+
+  <!-- Column 2: Masked (Cloud View) -->
+  <div class="col">
+    <div class="col-header"><span class="dot dot-yellow"></span> Airlock Outbound — Cloud View</div>
+    <div class="col-body empty" id="masked">What the LLM cloud sees...</div>
+  </div>
+
+  <!-- Column 3: Output -->
+  <div class="col">
+    <div class="col-header"><span class="dot dot-green"></span> Response — Final Output</div>
+    <div class="col-body empty" id="output">Response from the Airlock...</div>
+    <div class="entity-list" id="entities"></div>
+  </div>
+</div>
+
+<div class="status" id="status"></div>
+
+<script>
+const API = '/api/v1/chat';
+let currentSessionId = null;
+
+async function send() {
+  const input = document.getElementById('input').value.trim();
+  if (!input) return;
+
+  const role = document.getElementById('role').value;
+  const btn = document.getElementById('sendBtn');
+  const status = document.getElementById('status');
+
+  btn.disabled = true;
+  status.className = 'status';
+  status.textContent = 'Processing...';
+
+  try {
+    const body = { prompt: input, role: role };
+    if (currentSessionId) body.session_id = currentSessionId;
+
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+
+    const data = await res.json();
+    currentSessionId = data.session_id;
+
+    // Column 2: masked
+    const maskedEl = document.getElementById('masked');
+    maskedEl.textContent = data.masked_payload;
+    maskedEl.classList.remove('empty');
+
+    // Column 3: output
+    const outputEl = document.getElementById('output');
+    outputEl.textContent = data.final_response;
+    outputEl.classList.remove('empty');
+
+    // Entities
+    const entEl = document.getElementById('entities');
+    if (data.detected_entities.length > 0) {
+      entEl.innerHTML = '<div style="font-size:11px;color:#8b949e;margin-bottom:4px">Detected PII:</div>' +
+        data.detected_entities.map(e =>
+          `<span class="entity-tag" title="${e.original_value}">${e.token} <span style="color:#6e7681">${e.entity_type}</span></span>`
+        ).join('');
+    } else {
+      entEl.innerHTML = '';
+    }
+
+    // Latency
+    document.getElementById('latency').textContent = `${data.latency_ms}ms`;
+
+    status.className = 'status ok';
+    status.textContent = `Session: ${data.session_id.slice(0, 8)}... | Model: ${data.llm_model}`;
+
+  } catch (e) {
+    status.className = 'status err';
+    status.textContent = `Error: ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  const masked = document.getElementById('masked');
+  const output = document.getElementById('output');
+  masked.textContent = 'What the LLM cloud sees...';
+  masked.classList.add('empty');
+  output.textContent = 'Response from the Airlock...';
+  output.classList.add('empty');
+  document.getElementById('entities').innerHTML = '';
+  document.getElementById('latency').textContent = '';
+  document.getElementById('status').textContent = '';
+  currentSessionId = null;
+}
+
+// Ctrl+Enter to send
+document.getElementById('input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) send();
+});
+</script>
+</body>
+</html>

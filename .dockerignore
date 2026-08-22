@@ -1,0 +1,17 @@
+__pycache__
+*.pyc
+*.pyo
+*.db
+*.sqlite
+*.sqlite3
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.git
+.env
+node_modules
+dist
+vite.config.js
+.vscode
+.idea
+*.log
