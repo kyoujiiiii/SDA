@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: back-data
+  namespace: bernhack
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: back
+  namespace: bernhack
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: back
+  template:
+    metadata:
+      labels:
+        app: back
+    spec:
+      containers:
+        - name: back
+          image: ghcr.io/kyoujiiiii/bernhack-back:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - configMapRef: { name: bernhack-config }
+            - secretRef:    { name: bernhack-secrets }
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests: { cpu: "200m", memory: "512Mi" }
+            limits:   { cpu: "1000m", memory: "2Gi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: back-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: back
+  namespace: bernhack
+spec:
+  selector:
+    app: back
+  ports:
+    - port: 8000
+      targetPort: 8000

@@ -18,10 +18,9 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - NVAPI_KEY=${NVAPI_KEY:-}
-      - LLM_BASE_URL=${LLM_BASE_URL:-}
-      - LLM_MODEL=${LLM_MODEL:-gpt-4o-mini}
+      - LLM_BASE_URL=${LLM_BASE_URL:-https://integrate.api.nvidia.com/v1}
+      - LLM_MODEL=${LLM_MODEL:-meta/llama-3.1-8b-instruct}
       - REDIS_URL=redis://redis:6379/0
       - SESSION_TTL=${SESSION_TTL:-3600}
       - DATABASE_PATH=/data/airlock_audit.db

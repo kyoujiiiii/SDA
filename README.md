@@ -123,7 +123,6 @@ Dev server runs at http://localhost:5173 and proxies API requests to http://loca
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API key | — |
 | `NVAPI_KEY` | NVIDIA NIM API key | — |
 | `LLM_BASE_URL` | Custom LLM endpoint | — |
 | `LLM_MODEL` | LLM model name | `gpt-4o-mini` |

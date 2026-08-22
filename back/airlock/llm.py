@@ -1,4 +1,4 @@
-"""LLM service — OpenAI-compatible API (OpenAI, NVIDIA NIM, etc.) with mock fallback."""
+"""LLM service — NVIDIA NIM via the OpenAI-compatible SDK, with mock fallback."""
 
 import re
 import time
@@ -56,14 +56,13 @@ class LLMService:
 
     def __init__(self):
         key = LLM_API_KEY
-        if key and key not in ("your_openai_api_key_here", "your_nvapi_key_here", ""):
+        if key and key not in ("your_nvapi_key_here", ""):
             kwargs = {"api_key": key}
             if LLM_BASE_URL:
                 kwargs["base_url"] = LLM_BASE_URL
             self._client = OpenAI(**kwargs)
             self.use_mock = False
-            provider = "nvidia" if "nvidia" in (LLM_BASE_URL or "").lower() else "openai"
-            print(f"LLM client ready ({provider}, model={LLM_MODEL})")
+            print(f"LLM client ready (nvidia, model={LLM_MODEL})")
         else:
             print("WARNING: No LLM API key set. Using mock mode.")
             self._client = None
@@ -155,14 +154,14 @@ class LLMService:
             )
         return LLMResponse(
             content=content,
-            model="mock-gpt-4o-mini",
+            model="mock-llama-3.1-8b-instruct",
             usage={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
             latency_ms=5,
         )
 
     def get_stats(self) -> Dict:
         return {
-            "mode": "mock" if self.use_mock else "openai",
+            "mode": "mock" if self.use_mock else "nvidia",
             "total_requests": self._requests,
             "total_errors": self._errors,
             "avg_latency_ms": self._total_ms // self._requests if self._requests else 0,

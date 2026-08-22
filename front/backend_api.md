@@ -401,11 +401,6 @@ NVAPI_KEY=nvapi-...
 LLM_BASE_URL=https://integrate.api.nvidia.com/v1
 LLM_MODEL=meta/llama-3.1-8b-instruct
 
-# LLM — OpenAI (alternative)
-# OPENAI_API_KEY=sk-...
-# LLM_BASE_URL=
-# LLM_MODEL=gpt-4o-mini
-
 # Redis
 REDIS_URL=redis://localhost:6379/0
 SESSION_TTL=3600

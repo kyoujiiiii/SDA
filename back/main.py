@@ -98,7 +98,7 @@ async def root():
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "vault": vault.backend, "llm": "mock" if llm_service.use_mock else "openai"}
+    return {"status": "ok", "vault": vault.backend, "llm": "mock" if llm_service.use_mock else "nvidia"}
 
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
