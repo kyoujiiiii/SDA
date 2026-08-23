@@ -23,15 +23,23 @@ jobs:
             back:
               - 'back/**'
               - 'core/**'
+              - 'autotests/**'
             front:
               - 'front/**'
+
   test-back:
+    needs: changes
+    if: needs.changes.outputs.back == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: |
+            back/requirements.txt
+            autotests/requirements.txt
       - run: pip install -r back/requirements.txt -r autotests/requirements.txt
       - run: python -m spacy download en_core_web_lg
       - run: pytest autotests/backend autotests/core
@@ -45,15 +53,12 @@ jobs:
       packages: write
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & push back
         uses: docker/build-push-action@v6
         with:
@@ -67,23 +72,20 @@ jobs:
           cache-to: type=gha,mode=max
 
   build-front:
-    needs: [changes, test-back]
-    if: needs.changes.outputs.front == 'true' && needs.test-back.result == 'success'
+    needs: changes
+    if: needs.changes.outputs.front == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
     steps:
       - uses: actions/checkout@v4
-
       - uses: docker/setup-buildx-action@v3
-
       - uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Build & push front
         uses: docker/build-push-action@v6
         with:
@@ -105,20 +107,17 @@ jobs:
     steps:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
-
       - name: Configure kubeconfig
         run: |
           mkdir -p ~/.kube
           echo "${{ secrets.KUBECONFIG }}" > ~/.kube/config
           chmod 600 ~/.kube/config
-
       - name: Rollout back
         if: needs.build-back.result == 'success'
         run: |
           kubectl -n bernhack set image deploy/back \
             back=${{ env.REGISTRY }}/${{ env.IMAGE_OWNER }}/bernhack-back:${{ github.sha }}
           kubectl -n bernhack rollout status deploy/back --timeout=5m
-
       - name: Rollout front
         if: needs.build-front.result == 'success'
         run: |
